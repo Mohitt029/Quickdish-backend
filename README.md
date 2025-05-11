@@ -1,5 +1,7 @@
 Swiggy Backend 🍕🚀
+
 Welcome to the Swiggy Backend, a Spring Boot-based API for a food delivery system. This project provides a robust backend for managing users, restaurants, orders, payments, deliveries, and more. Built with Java, Spring Boot, and MongoDB, it offers a scalable and efficient solution for a food delivery platform.
+
 🌟 Features
 
 User Management: Register, update, and delete users.
@@ -19,23 +21,6 @@ Logging: SLF4J
 Validation: Jakarta Validation
 Version Control: Git
 
-📦 Project Structure
-Swiggy-backend/
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/
-│   │   │       └── example/
-│   │   │           └── swiggy_project/
-│   │   │               ├── controller/    # REST controllers (e.g., UserController)
-│   │   │               ├── exception/     # Custom exceptions (e.g., ResourceNotFoundException)
-│   │   │               ├── model/         # Data models (e.g., Order, Payment)
-│   │   │               ├── repository/    # MongoDB repositories (e.g., OrderRepository)
-│   │   │               ├── service/       # Business logic (e.g., PaymentService)
-│   │   │               └── SwiggyProjectApplication.java
-│   │   └── resources/
-│   │       └── application.properties    # Configuration (excluded from Git)
-├── .gitignore                            # Git ignore file
-├── pom.xml                               # Maven dependencies
-└── README.md                             # Project documentation
+
+
 
