@@ -1,0 +1,25 @@
+# Build output directories
+/target/
+/build/
+
+# Dependency directories
+.m2/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# Log files
+*.log
+
+# Environment files
+.env
+application.properties
+application.yml
+
+# macOS system files
+.DS_Store
+
+# Temporary files
+*.tmp
