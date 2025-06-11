@@ -1,6 +1,6 @@
-Swiggy Backend 🍕🚀
+Quickdish Backend 🍕🚀
 
-Welcome to the Swiggy Backend, a Spring Boot-based API for a food delivery system. This project provides a robust backend for managing users, restaurants, orders, payments, deliveries, and more. Built with Java, Spring Boot, and MongoDB, it offers a scalable and efficient solution for a food delivery platform.
+Welcome to the Quickdish Backend, a Spring Boot-based API for a food delivery system. This project provides a robust backend for managing users, restaurants, orders, payments, deliveries, and more. Built with Java, Spring Boot, and MongoDB, it offers a scalable and efficient solution for a food delivery platform.
 
 🌟 Features
 
