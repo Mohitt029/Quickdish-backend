@@ -8,16 +8,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
-
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Controller for user-related operations, including user management, cart, orders, payments, menu item preferences, and coupon management.
- */
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -48,10 +45,11 @@ public class UserController {
     private CouponService couponService;
 
     @Autowired
-    private DeliveryService deliveryService; // Added to fetch deliveries
+    private DeliveryService deliveryService;
 
     // User Endpoints
     @PostMapping
+    @PreAuthorize("permitAll()")
     public ResponseEntity<User> addUser(@Valid @RequestBody User user) {
         logger.info("Received request to add user: {}", user.getUsername());
         try {
@@ -68,6 +66,7 @@ public class UserController {
     }
 
     @DeleteMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
     public ResponseEntity<Void> deleteUser(@PathVariable String userId) {
         logger.info("Received request to delete user with ID: {}", userId);
         try {
@@ -84,6 +83,7 @@ public class UserController {
     }
 
     @PutMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
     public ResponseEntity<User> updateUser(@PathVariable String userId, @Valid @RequestBody User user) {
         logger.info("Received request to update user with ID: {}", userId);
         try {
@@ -103,6 +103,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
     public ResponseEntity<User> getUser(@PathVariable String userId) {
         logger.info("Received request to fetch user with ID: {}", userId);
         try {
@@ -120,6 +121,7 @@ public class UserController {
 
     // Restaurant Endpoints
     @GetMapping("/restaurants/{id}")
+    @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<Restaurant> getRestaurantById(@PathVariable String id) {
         logger.info("Received request to fetch restaurant with ID: {}", id);
         try {
@@ -135,8 +137,31 @@ public class UserController {
         }
     }
 
+    @GetMapping("/{userId}/restaurants/nearby")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    public ResponseEntity<List<Restaurant>> getNearbyHighRatedRestaurants(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "4.0") double minRating,
+            @RequestParam(defaultValue = "10.0") double maxDistanceKm) {
+        try {
+            List<Restaurant> restaurants = restaurantService.findRestaurantsByRatingAndProximity(userId, minRating, maxDistanceKm);
+            logger.info("Fetched {} nearby high-rated restaurants for user ID: {}", restaurants.size(), userId);
+            return ResponseEntity.ok(restaurants);
+        } catch (ResourceNotFoundException e) {
+            logger.warn("Failed to fetch restaurants: {}", e.getMessage());
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Failed to fetch restaurants: {}", e.getMessage());
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("Unexpected error while fetching restaurants: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     // Menu Endpoints
     @GetMapping("/menus/{restaurantId}")
+    @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<FoodMenu> getMenuByRestaurantId(@PathVariable String restaurantId) {
         logger.info("Received request to fetch menu for restaurant ID: {}", restaurantId);
         try {
@@ -153,6 +178,7 @@ public class UserController {
     }
 
     @GetMapping("/menu-items/{restaurantId}/cuisine/{cuisineType}")
+    @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<List<MenuItem>> getMenuItemsByCuisine(@PathVariable String restaurantId, @PathVariable String cuisineType) {
         logger.info("Received request to fetch menu items for restaurant ID: {} with cuisine: {}", restaurantId, cuisineType);
         try {
@@ -169,6 +195,7 @@ public class UserController {
     }
 
     @GetMapping("/menu-items/{restaurantId}/meal/{mealType}")
+    @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<List<MenuItem>> getMenuItemsByMealType(@PathVariable String restaurantId, @PathVariable String mealType) {
         logger.info("Received request to fetch menu items for restaurant ID: {} with meal type: {}", restaurantId, mealType);
         try {
@@ -186,6 +213,7 @@ public class UserController {
 
     // Cart Endpoints
     @PutMapping("/cart")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
     public ResponseEntity<Cart> updateCart(@RequestParam @Valid String userId, @RequestParam String menuItemId, @RequestParam int quantity) {
         logger.info("Received request to update cart for user ID: {} with menu item ID: {} and quantity: {}", userId, menuItemId, quantity);
         if (quantity < 0) {
@@ -205,23 +233,8 @@ public class UserController {
         }
     }
 
-    @DeleteMapping("/cart")
-    public ResponseEntity<Void> clearCart(@RequestParam @Valid String userId) {
-        logger.info("Received request to clear cart for user ID: {}", userId);
-        try {
-            cartService.clearCart(userId);
-            logger.info("Cart cleared successfully for user ID: {}", userId);
-            return ResponseEntity.noContent().build();
-        } catch (ResourceNotFoundException e) {
-            logger.warn("Failed to clear cart: {}", e.getMessage());
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        } catch (Exception e) {
-            logger.error("Unexpected error while clearing cart: {}", e.getMessage(), e);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
     @GetMapping("/cart")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
     public ResponseEntity<Cart> getCart(@RequestParam @Valid String userId) {
         logger.info("Received request to fetch cart for user ID: {}", userId);
         try {
@@ -237,8 +250,26 @@ public class UserController {
         }
     }
 
+    @DeleteMapping("/cart")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
+    public ResponseEntity<Void> clearCart(@RequestParam @Valid String userId) {
+        logger.info("Received request to clear cart for user ID: {}", userId);
+        try {
+            cartService.clearCart(userId);
+            logger.info("Cart cleared successfully for user ID: {}", userId);
+            return ResponseEntity.noContent().build();
+        } catch (ResourceNotFoundException e) {
+            logger.warn("Failed to clear cart: {}", e.getMessage());
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            logger.error("Unexpected error while clearing cart: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     // Order Endpoints
     @PutMapping("/orders")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
     public ResponseEntity<Order> placeOrder(@RequestParam @Valid String userId, @RequestParam String restaurantId) {
         logger.info("Received request to place order for user ID: {} from restaurant ID: {}", userId, restaurantId);
         try {
@@ -258,6 +289,7 @@ public class UserController {
     }
 
     @PutMapping("/orders/{orderId}/status")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('RESTAURANT') and @orderService.getOrderById(#orderId).restaurantId == authentication.principal.id)")
     public ResponseEntity<Order> updateOrderStatus(@PathVariable String orderId, @RequestParam String status) {
         logger.info("Received request to update status of order ID: {} to {}", orderId, status);
         List<String> validStatuses = Arrays.asList("PLACED", "PREPARING", "DELIVERED", "CANCELLED");
@@ -278,7 +310,28 @@ public class UserController {
         }
     }
 
+    @PostMapping("/orders/{orderId}/cancel")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and @orderService.getOrderById(#orderId).userId == authentication.principal.id)")
+    public ResponseEntity<Order> cancelOrder(@PathVariable String orderId) {
+        logger.info("Received request to cancel order ID: {}", orderId);
+        try {
+            Order order = orderService.updateOrder(orderId, "CANCELLED");
+            logger.info("Order cancelled successfully for order ID: {}", orderId);
+            return ResponseEntity.ok(order);
+        } catch (ResourceNotFoundException e) {
+            logger.warn("Failed to cancel order: {}", e.getMessage());
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Failed to cancel order: {}", e.getMessage());
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        } catch (Exception e) {
+            logger.error("Unexpected error while cancelling order: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @GetMapping("/orders")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
     public ResponseEntity<List<Order>> getOrdersByUser(@RequestParam @Valid String userId) {
         logger.info("Received request to fetch orders for user ID: {}", userId);
         try {
@@ -295,6 +348,7 @@ public class UserController {
     }
 
     @GetMapping("/orders/restaurant/{restaurantId}")
+    @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<List<Order>> getOrdersByRestaurant(@RequestParam @Valid String userId, @PathVariable String restaurantId) {
         logger.info("Received request to fetch orders for user ID: {} from restaurant ID: {}", userId, restaurantId);
         try {
@@ -311,6 +365,7 @@ public class UserController {
     }
 
     @GetMapping("/orders/{orderId}/status")
+    @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<String> getOrderStatus(@PathVariable String orderId) {
         logger.info("Received request to fetch status for order ID: {}", orderId);
         try {
@@ -326,40 +381,9 @@ public class UserController {
         }
     }
 
-    @GetMapping("/deliveries/{deliveryBoyId}")
-    public ResponseEntity<List<Delivery>> getDeliveriesByDeliveryBoy(@PathVariable String deliveryBoyId) {
-        logger.info("Received request to fetch deliveries for delivery boy ID: {}", deliveryBoyId);
-        try {
-            List<Delivery> deliveries = deliveryService.getDeliveriesByDeliveryBoy(deliveryBoyId);
-            logger.info("Fetched {} deliveries for delivery boy ID: {}", deliveries.size(), deliveryBoyId);
-            return ResponseEntity.ok(deliveries);
-        } catch (IllegalArgumentException e) {
-            logger.warn("Failed to fetch deliveries: {}", e.getMessage());
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        } catch (Exception e) {
-            logger.error("Unexpected error while fetching deliveries: {}", e.getMessage(), e);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
     // Coupon Endpoints
-    @PostMapping("/coupons")
-    public ResponseEntity<Coupon> createCoupon(@Valid @RequestBody Coupon coupon) {
-        logger.info("Received request to create coupon with code: {}", coupon.getCode());
-        try {
-            Coupon createdCoupon = couponService.createCoupon(coupon);
-            logger.info("Coupon created successfully with ID: {}", createdCoupon.getId());
-            return ResponseEntity.status(HttpStatus.CREATED).body(createdCoupon);
-        } catch (IllegalArgumentException e) {
-            logger.warn("Failed to create coupon: {}", e.getMessage());
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        } catch (Exception e) {
-            logger.error("Unexpected error while creating coupon: {}", e.getMessage(), e);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
     @GetMapping("/coupons/{code}")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<Coupon> getCouponByCode(@PathVariable String code) {
         logger.info("Received request to fetch coupon with code: {}", code);
         try {
@@ -375,42 +399,8 @@ public class UserController {
         }
     }
 
-    @PutMapping("/coupons/{id}")
-    public ResponseEntity<Coupon> updateCoupon(@PathVariable String id, @Valid @RequestBody Coupon coupon) {
-        logger.info("Received request to update coupon with ID: {}", id);
-        try {
-            Coupon updatedCoupon = couponService.updateCoupon(id, coupon);
-            logger.info("Coupon updated successfully with ID: {}", id);
-            return ResponseEntity.ok(updatedCoupon);
-        } catch (ResourceNotFoundException e) {
-            logger.warn("Failed to update coupon: {}", e.getMessage());
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        } catch (IllegalArgumentException e) {
-            logger.warn("Failed to update coupon: {}", e.getMessage());
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        } catch (Exception e) {
-            logger.error("Unexpected error while updating coupon: {}", e.getMessage(), e);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    @DeleteMapping("/coupons/{id}")
-    public ResponseEntity<Void> deleteCoupon(@PathVariable String id) {
-        logger.info("Received request to delete coupon with ID: {}", id);
-        try {
-            couponService.deleteCoupon(id);
-            logger.info("Coupon deleted successfully with ID: {}", id);
-            return ResponseEntity.noContent().build();
-        } catch (ResourceNotFoundException e) {
-            logger.warn("Failed to delete coupon: {}", e.getMessage());
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        } catch (Exception e) {
-            logger.error("Unexpected error while deleting coupon: {}", e.getMessage(), e);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
     @PostMapping("/orders/{orderId}/coupon")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and @orderService.getOrderById(#orderId).userId == authentication.principal.id)")
     public ResponseEntity<Order> applyCoupon(@PathVariable String orderId, @RequestParam String couponCode) {
         logger.info("Received request to apply coupon {} to order ID: {}", couponCode, orderId);
         try {
@@ -431,6 +421,7 @@ public class UserController {
 
     // Bill Endpoint
     @GetMapping("/orders/{orderId}/bill")
+    @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<Bill> getBill(@PathVariable String orderId) {
         logger.info("Received request to fetch bill for order ID: {}", orderId);
         try {
@@ -448,6 +439,7 @@ public class UserController {
 
     // Payment Endpoints
     @PostMapping("/payments")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and @orderService.getOrderById(#orderId).userId == authentication.principal.id)")
     public ResponseEntity<Payment> recordPayment(
             @RequestParam String orderId,
             @RequestParam double amount,
@@ -474,6 +466,7 @@ public class UserController {
     }
 
     @GetMapping("/payments/{paymentId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and @paymentService.getPaymentById(#paymentId).order.userId == authentication.principal.id)")
     public ResponseEntity<Payment> getPaymentById(@PathVariable String paymentId) {
         logger.info("Received request to fetch payment with ID: {}", paymentId);
         try {
@@ -490,6 +483,7 @@ public class UserController {
     }
 
     @GetMapping("/payments/order/{orderId}")
+    @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<Payment> getPaymentByOrderId(@PathVariable String orderId) {
         logger.info("Received request to fetch payment for order ID: {}", orderId);
         try {
@@ -506,6 +500,7 @@ public class UserController {
     }
 
     @PostMapping("/payments/validate")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and @orderService.getOrderById(#orderId).userId == authentication.principal.id)")
     public ResponseEntity<Boolean> validatePayment(@RequestParam @Valid String orderId, @RequestParam double paymentAmount) {
         logger.info("Received request to validate payment for order ID: {} with amount: {}", orderId, paymentAmount);
         if (paymentAmount <= 0) {
@@ -526,8 +521,9 @@ public class UserController {
     }
 
     // Menu Item Like Endpoints
-    @PostMapping("/{userId}/like-menu-item")
-    public ResponseEntity<User> likeMenuItem(@PathVariable String userId, @RequestParam String menuItemId) {
+    @PostMapping("/{userId}/like/{menuItemId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
+    public ResponseEntity<User> likeMenuItem(@PathVariable String userId, @PathVariable String menuItemId) {
         logger.info("Received request for user ID: {} to like menu item ID: {}", userId, menuItemId);
         try {
             User user = userService.likeMenuItem(userId, menuItemId);
@@ -542,7 +538,8 @@ public class UserController {
         }
     }
 
-    @GetMapping("/{userId}/liked-menu-items")
+    @GetMapping("/{userId}/liked")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
     public ResponseEntity<List<MenuItem>> getLikedMenuItems(@PathVariable String userId) {
         logger.info("Received request to fetch liked menu items for user ID: {}", userId);
         try {

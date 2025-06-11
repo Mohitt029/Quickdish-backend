@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
     private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
 
@@ -59,6 +61,7 @@ public class AdminController {
     }
 
     @GetMapping("/restaurants/{id}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('RESTAURANT') and @restaurantService.getRestaurantById(#id).ownerId == authentication.principal.id)")
     public ResponseEntity<Restaurant> getRestaurantById(@PathVariable String id) {
         logger.info("Received request to fetch restaurant with ID: {}", id);
         try {
@@ -76,6 +79,7 @@ public class AdminController {
 
     // Menu Endpoints
     @GetMapping("/menus/{id}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('RESTAURANT') and @menuService.getMenuById(#id).restaurantId == authentication.principal.id)")
     public ResponseEntity<FoodMenu> getMenuById(@PathVariable String id) {
         logger.info("Received request to fetch menu with ID: {}", id);
         try {
@@ -92,6 +96,7 @@ public class AdminController {
     }
 
     @PostMapping("/menus/{menuId}/items")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('RESTAURANT') and @menuService.getMenuById(#menuId).restaurantId == authentication.principal.id)")
     public ResponseEntity<MenuItem> addMenuItem(@PathVariable String menuId, @Valid @RequestBody MenuItem menuItem) {
         logger.info("Received request to add menu item to menu ID: {}", menuId);
         try {
@@ -112,6 +117,7 @@ public class AdminController {
 
     // Menu Item Endpoints
     @GetMapping("/menu-items/{id}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('RESTAURANT') and @menuItemService.getMenuItemById(#id).foodMenu.restaurantId == authentication.principal.id)")
     public ResponseEntity<MenuItem> getMenuItemById(@PathVariable String id) {
         logger.info("Received request to fetch menu item with ID: {}", id);
         try {
@@ -145,6 +151,7 @@ public class AdminController {
     }
 
     @GetMapping("/orders/{id}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('RESTAURANT') and @orderService.getOrderById(#id).restaurantId == authentication.principal.id)")
     public ResponseEntity<Order> getOrderById(@PathVariable String id) {
         logger.info("Received request to fetch order with ID: {}", id);
         try {

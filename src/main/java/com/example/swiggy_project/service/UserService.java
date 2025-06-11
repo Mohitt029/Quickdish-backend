@@ -7,6 +7,10 @@ import com.example.swiggy_project.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -17,7 +21,7 @@ import java.util.stream.Collectors;
  * Service class for managing user-related operations.
  */
 @Service
-public class UserService {
+public class UserService implements UserDetailsService {
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
 
     @Autowired
@@ -26,13 +30,33 @@ public class UserService {
     @Autowired
     private MenuItemService menuItemService;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        logger.info("Loading user by username: {}", username);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> {
+                    logger.warn("User not found with username: {}", username);
+                    return new UsernameNotFoundException("User not found with username: " + username);
+                });
+        return user;
+    }
+
     public User addUser(User user) {
-        List<String> validRoles = Arrays.asList("CUSTOMER", "ADMIN", "DELIVERY_BOY");
+        List<String> validRoles = Arrays.asList("ROLE_USER", "ROLE_ADMIN", "ROLE_RESTAURANT");
         if (!validRoles.contains(user.getRole())) {
             logger.error("Invalid role provided: {}", user.getRole());
-            throw new IllegalArgumentException("Invalid role: " + user.getRole());
+            throw new IllegalArgumentException("Invalid role: " + user.getRole() + ". Valid roles are: " + validRoles);
         }
-        // Assume password hashing is handled elsewhere
+        // Validate email uniqueness
+        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+            logger.error("Email already exists: {}", user.getEmail());
+            throw new IllegalArgumentException("Email already exists: " + user.getEmail());
+        }
+        // Hash the password before saving
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         logger.info("Adding new user with username: {}", user.getUsername());
         return userRepository.save(user);
     }
@@ -46,26 +70,44 @@ public class UserService {
                 });
     }
 
+    public User findByEmail(String email) {
+        logger.info("Retrieving user with email: {}", email);
+        return userRepository.findByEmail(email)
+                .orElse(null); // Return null if not found, handled in AuthController
+    }
+
     public User updateUser(String userId, User user) {
         logger.info("Updating user with ID: {}", userId);
         User existing = getUser(userId);
-        List<String> validRoles = Arrays.asList("CUSTOMER", "ADMIN", "DELIVERY_BOY");
+        List<String> validRoles = Arrays.asList("ROLE_USER", "ROLE_ADMIN", "ROLE_RESTAURANT");
         if (!validRoles.contains(user.getRole())) {
             logger.error("Invalid role provided: {}", user.getRole());
-            throw new IllegalArgumentException("Invalid role: " + user.getRole());
+            throw new IllegalArgumentException("Invalid role: " + user.getRole() + ". Valid roles are: " + validRoles);
+        }
+        // Validate email uniqueness if changed
+        if (!existing.getEmail().equals(user.getEmail()) && userRepository.findByEmail(user.getEmail()).isPresent()) {
+            logger.error("Email already exists: {}", user.getEmail());
+            throw new IllegalArgumentException("Email already exists: " + user.getEmail());
         }
         existing.setUsername(user.getUsername());
         existing.setAddress(user.getAddress());
         existing.setPhoneNo(user.getPhoneNo());
-        existing.setPassword(user.getPassword());
+        existing.setEmail(user.getEmail());
+        // Only update password if provided
+        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
+            existing.setPassword(passwordEncoder.encode(user.getPassword()));
+        }
         existing.setRole(user.getRole());
         existing.setFirstName(user.getFirstName());
         existing.setLastName(user.getLastName());
         existing.setGender(user.getGender());
         existing.setBio(user.getBio());
-        // Preserve the likedMenuItems field
+        // Preserve the likedMenuItems and location fields
         if (user.getLikedMenuItems() != null) {
             existing.setLikedMenuItems(user.getLikedMenuItems());
+        }
+        if (user.getLocation() != null) {
+            existing.setLocation(user.getLocation());
         }
         logger.info("User updated successfully with ID: {}", userId);
         return userRepository.save(existing);
