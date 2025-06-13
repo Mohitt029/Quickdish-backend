@@ -12,6 +12,7 @@ public class Order {
     private String id;
     private String userId;
     private String restaurantId;
+    private String deliveryAddress;
     private double totalAmount;
     private String status;
     private String deliveryBoyId;
@@ -81,6 +82,14 @@ public class Order {
 
     public void setRestaurantId(String restaurantId) {
         this.restaurantId = restaurantId;
+    }
+
+    public String getDeliveryAddress() {
+        return deliveryAddress;
+    }
+
+    public void setDeliveryAddress(String deliveryAddress) {
+        this.deliveryAddress = deliveryAddress;
     }
 
     public double getTotalAmount() {

@@ -2,8 +2,10 @@ package com.example.swiggy_project.service;
 
 import com.example.swiggy_project.exception.ResourceNotFoundException;
 import com.example.swiggy_project.model.FoodMenu;
+import com.example.swiggy_project.model.MenuItem;
 import com.example.swiggy_project.model.Restaurant;
 import com.example.swiggy_project.repository.FoodMenuRepository;
+import com.example.swiggy_project.repository.MenuItemRepository;
 import com.example.swiggy_project.repository.RestaurantRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import jakarta.validation.Valid;
+import java.util.List;
 
 /**
  * Service class for managing menu-related operations.
@@ -26,6 +29,9 @@ public class MenuService {
 
     @Autowired
     private RestaurantRepository restaurantRepository;
+
+    @Autowired
+    private MenuItemRepository menuItemRepository; // Add this dependency
 
     /**
      * Adds a new menu for a specific restaurant.
@@ -76,24 +82,27 @@ public class MenuService {
     }
 
     /**
-     * Retrieves a menu by the restaurant ID.
+     * Retrieves the list of menu items for a restaurant by its ID.
      *
      * @param restaurantId the ID of the restaurant
-     * @return the FoodMenu object
+     * @return the list of MenuItem objects
      * @throws ResourceNotFoundException if the menu is not found
      * @throws IllegalArgumentException  if the restaurantId is null or empty
      */
-    public FoodMenu getMenuByRestaurantId(String restaurantId) {
+    public List<MenuItem> getMenuItemsByRestaurantId(String restaurantId) {
         if (!StringUtils.hasText(restaurantId)) {
             logger.error("Restaurant ID is null or empty");
             throw new IllegalArgumentException("Restaurant ID cannot be null or empty");
         }
-        logger.info("Retrieving menu for restaurant ID: {}", restaurantId);
+        logger.info("Retrieving menu items for restaurant ID: {}", restaurantId);
         FoodMenu foodMenu = foodMenuRepository.findByRestaurantId(restaurantId);
         if (foodMenu == null) {
             logger.warn("Menu not found for restaurant ID: {}", restaurantId);
             throw new ResourceNotFoundException("Menu not found for restaurant ID: " + restaurantId);
         }
-        return foodMenu;
+        // Fetch menu items directly from the menu_items collection
+        List<MenuItem> menuItems = menuItemRepository.findByFoodMenuId(foodMenu.getId());
+        logger.info("Found {} menu items for restaurant ID: {}", menuItems.size(), restaurantId);
+        return menuItems;
     }
 }

@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 @Document(collection = "users")
 public class User implements UserDetails {
@@ -33,7 +34,7 @@ public class User implements UserDetails {
     private String password;
 
     @NotBlank(message = "Role is mandatory")
-    private String role; // Now uses "ROLE_USER", "ROLE_ADMIN", "ROLE_RESTAURANT"
+    private String role; // Now uses "ROLE_USER", "ROLE_ADMIN", "ROLE_RESTAURANT", "ROLE_DELIVERY_BOY"
 
     @NotBlank(message = "Email is mandatory")
     @Email(message = "Email should be valid")
@@ -48,6 +49,12 @@ public class User implements UserDetails {
     private double[] location; // [longitude, latitude]
 
     private List<String> likedMenuItems = new ArrayList<>(); // List of MenuItem IDs the user has liked
+
+    private List<String> favoriteCuisines = new ArrayList<>(); // Favorite cuisines for personalization
+
+    private List<String> orderHistory = new ArrayList<>(); // List of Order IDs
+
+    private List<String> addresses = new ArrayList<>(); // Multiple addresses for delivery
 
     // Getters and setters
     public String getId() {
@@ -152,6 +159,30 @@ public class User implements UserDetails {
 
     public void setLocation(double[] location) {
         this.location = location;
+    }
+
+    public List<String> getFavoriteCuisines() {
+        return favoriteCuisines;
+    }
+
+    public void setFavoriteCuisines(List<String> favoriteCuisines) {
+        this.favoriteCuisines = favoriteCuisines;
+    }
+
+    public List<String> getOrderHistory() {
+        return orderHistory;
+    }
+
+    public void setOrderHistory(List<String> orderHistory) {
+        this.orderHistory = orderHistory;
+    }
+
+    public List<String> getAddresses() {
+        return addresses;
+    }
+
+    public void setAddresses(List<String> addresses) {
+        this.addresses = addresses;
     }
 
     // UserDetails implementation for Spring Security

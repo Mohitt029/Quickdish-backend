@@ -44,7 +44,10 @@ public class Cart {
         this.items = items;
     }
 
+
     public static class CartItem {
+        private String id; // Unique ID for the cart item
+
         @NotBlank(message = "Menu item ID is mandatory")
         private String menuItemId;
 
@@ -55,6 +58,14 @@ public class Cart {
         private double price;
 
         // Getters and Setters
+        public String getId() {
+            return id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
         public String getMenuItemId() {
             return menuItemId;
         }

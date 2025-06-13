@@ -3,9 +3,6 @@ package com.example.swiggy_project.model;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-/**
- * Represents a bill for an order in the system.
- */
 @Document(collection = "bills")
 public class Bill {
     @Id
@@ -14,6 +11,8 @@ public class Bill {
     private String orderId;
 
     private double subtotal;
+    private double cgst;
+    private double sgst;
     private double tax;
     private double discount;
     private double total;
@@ -41,6 +40,22 @@ public class Bill {
 
     public void setSubtotal(double subtotal) {
         this.subtotal = subtotal;
+    }
+
+    public double getCgst() {
+        return cgst;
+    }
+
+    public void setCgst(double cgst) {
+        this.cgst = cgst;
+    }
+
+    public double getSgst() {
+        return sgst;
+    }
+
+    public void setSgst(double sgst) {
+        this.sgst = sgst;
     }
 
     public double getTax() {

@@ -3,9 +3,6 @@ package com.example.swiggy_project.model;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-/**
- * Represents a delivery associated with an order in the system.
- */
 @Document(collection = "deliveries")
 public class Delivery {
     @Id
@@ -13,6 +10,9 @@ public class Delivery {
     private String orderId; // Store only the order ID
     private String deliveryBoyId;
     private String status;
+    private String deliveryTime; // ISO 8601 format, e.g., "2025-06-12T12:00:00Z"
+    private String feedback;
+    private double rating; // 0 to 5
     private transient Order order; // Transient to avoid serialization in MongoDB
 
     // Constructors
@@ -55,6 +55,30 @@ public class Delivery {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getDeliveryTime() {
+        return deliveryTime;
+    }
+
+    public void setDeliveryTime(String deliveryTime) {
+        this.deliveryTime = deliveryTime;
+    }
+
+    public String getFeedback() {
+        return feedback;
+    }
+
+    public void setFeedback(String feedback) {
+        this.feedback = feedback;
+    }
+
+    public double getRating() {
+        return rating;
+    }
+
+    public void setRating(double rating) {
+        this.rating = rating;
     }
 
     public Order getOrder() {

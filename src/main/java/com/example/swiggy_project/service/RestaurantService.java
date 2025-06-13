@@ -8,6 +8,10 @@ import com.example.swiggy_project.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.geo.Point; // Import Point
 import org.springframework.stereotype.Service;
 
 import jakarta.validation.Valid;
@@ -22,6 +26,12 @@ public class RestaurantService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
+
+    // Earth radius in kilometers
+    private static final double EARTH_RADIUS_KM = 6371.0;
 
     public Restaurant addRestaurant(@Valid Restaurant restaurant) {
         logger.info("Adding new restaurant: {}", restaurant.getName());
@@ -47,6 +57,27 @@ public class RestaurantService {
                     logger.warn("Restaurant not found with ID: {}", id);
                     return new ResourceNotFoundException("Restaurant not found with ID: " + id);
                 });
+    }
+
+    public List<Restaurant> getAllRestaurants() {
+        logger.info("Retrieving all restaurants");
+        List<Restaurant> restaurants = restaurantRepository.findAll();
+        logger.info("Found {} restaurants", restaurants.size());
+        return restaurants;
+    }
+
+    public List<Restaurant> getRestaurantsByName(String name) {
+        logger.info("Searching restaurants by name: {}", name);
+        List<Restaurant> restaurants = restaurantRepository.findByNameContainingIgnoreCase(name);
+        logger.info("Found {} restaurants with name containing: {}", restaurants.size(), name);
+        return restaurants;
+    }
+
+    public List<Restaurant> getRestaurantsByCity(String city) {
+        logger.info("Searching restaurants by city: {}", city);
+        List<Restaurant> restaurants = restaurantRepository.findByAddressContainingIgnoreCase(city);
+        logger.info("Found {} restaurants in city: {}", restaurants.size(), city);
+        return restaurants;
     }
 
     public List<Restaurant> findRestaurantsByRatingAndProximity(String userId, double minRating, double maxDistanceKm) {
@@ -75,16 +106,30 @@ public class RestaurantService {
             throw new IllegalArgumentException("User location not set");
         }
 
-        // Convert distance from kilometers to radians (MongoDB uses radians for $geoWithin)
-        double earthRadiusKm = 6371; // Earth's radius in kilometers
-        double maxDistanceRadians = maxDistanceKm / earthRadiusKm;
-
         // User's location [longitude, latitude]
         double[] userLocation = user.getLocation();
+        double userLongitude = userLocation[0];
+        double userLatitude = userLocation[1];
 
-        // Query restaurants
-        List<Restaurant> restaurants = restaurantRepository.findByRatingAndLocation(minRating, userLocation, maxDistanceRadians);
-        logger.info("Found {} restaurants with rating >= {} and within {} km for user ID: {}", restaurants.size(), minRating, maxDistanceKm, userId);
+        // Convert distance from kilometers to radians (MongoDB uses radians for $nearSphere)
+        double maxDistanceRadians = maxDistanceKm / EARTH_RADIUS_KM;
+
+        // Create a geospatial query
+        Query query = new Query();
+
+        // Add rating criteria: rating >= minRating
+        query.addCriteria(Criteria.where("rating").gte(minRating));
+
+        // Add geospatial criteria: restaurants within maxDistanceKm
+        // Use Point for nearSphere
+        Point userPoint = new Point(userLongitude, userLatitude); // longitude, latitude
+        query.addCriteria(Criteria.where("location")
+                .nearSphere(userPoint)
+                .maxDistance(maxDistanceRadians));
+
+        List<Restaurant> restaurants = mongoTemplate.find(query, Restaurant.class);
+        logger.info("Found {} restaurants with rating >= {} and within {} km for user ID: {}",
+                restaurants.size(), minRating, maxDistanceKm, userId);
         return restaurants;
     }
 }

@@ -47,6 +47,9 @@ public class UserController {
     @Autowired
     private DeliveryService deliveryService;
 
+    @Autowired
+    private RecommendationService recommendationService;
+
     // User Endpoints
     @PostMapping
     @PreAuthorize("permitAll()")
@@ -120,6 +123,20 @@ public class UserController {
     }
 
     // Restaurant Endpoints
+    @GetMapping("/restaurants")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    public ResponseEntity<List<Restaurant>> getAllRestaurants() {
+        logger.info("Received request to fetch all restaurants");
+        try {
+            List<Restaurant> restaurants = restaurantService.getAllRestaurants();
+            logger.info("Fetched {} restaurants successfully", restaurants.size());
+            return ResponseEntity.ok(restaurants);
+        } catch (Exception e) {
+            logger.error("Unexpected error while fetching restaurants: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @GetMapping("/restaurants/{id}")
     @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<Restaurant> getRestaurantById(@PathVariable String id) {
@@ -137,12 +154,41 @@ public class UserController {
         }
     }
 
+    @GetMapping("/restaurants/search/name")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    public ResponseEntity<List<Restaurant>> getRestaurantsByName(@RequestParam String name) {
+        logger.info("Received request to search restaurants by name: {}", name);
+        try {
+            List<Restaurant> restaurants = restaurantService.getRestaurantsByName(name);
+            logger.info("Found {} restaurants with name: {}", restaurants.size(), name);
+            return ResponseEntity.ok(restaurants);
+        } catch (Exception e) {
+            logger.error("Unexpected error while searching restaurants: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("/restaurants/search/city")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    public ResponseEntity<List<Restaurant>> getRestaurantsByCity(@RequestParam String city) {
+        logger.info("Received request to search restaurants by city: {}", city);
+        try {
+            List<Restaurant> restaurants = restaurantService.getRestaurantsByCity(city);
+            logger.info("Found {} restaurants in city: {}", restaurants.size(), city);
+            return ResponseEntity.ok(restaurants);
+        } catch (Exception e) {
+            logger.error("Unexpected error while searching restaurants: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @GetMapping("/{userId}/restaurants/nearby")
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     public ResponseEntity<List<Restaurant>> getNearbyHighRatedRestaurants(
             @PathVariable String userId,
             @RequestParam(defaultValue = "4.0") double minRating,
             @RequestParam(defaultValue = "10.0") double maxDistanceKm) {
+        logger.info("Received request to fetch nearby high-rated restaurants for user ID: {}", userId);
         try {
             List<Restaurant> restaurants = restaurantService.findRestaurantsByRatingAndProximity(userId, minRating, maxDistanceKm);
             logger.info("Fetched {} nearby high-rated restaurants for user ID: {}", restaurants.size(), userId);
@@ -162,17 +208,17 @@ public class UserController {
     // Menu Endpoints
     @GetMapping("/menus/{restaurantId}")
     @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
-    public ResponseEntity<FoodMenu> getMenuByRestaurantId(@PathVariable String restaurantId) {
+    public ResponseEntity<List<MenuItem>> getMenuByRestaurantId(@PathVariable String restaurantId) {
         logger.info("Received request to fetch menu for restaurant ID: {}", restaurantId);
         try {
-            FoodMenu menu = menuService.getMenuByRestaurantId(restaurantId);
-            logger.info("Menu fetched successfully for restaurant ID: {}", restaurantId);
-            return ResponseEntity.ok(menu);
+            List<MenuItem> menuItems = menuService.getMenuItemsByRestaurantId(restaurantId);
+            logger.info("Menu items fetched successfully for restaurant ID: {}", restaurantId);
+            return ResponseEntity.ok(menuItems);
         } catch (ResourceNotFoundException e) {
-            logger.warn("Failed to fetch menu: {}", e.getMessage());
+            logger.warn("Failed to fetch menu items: {}", e.getMessage());
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         } catch (Exception e) {
-            logger.error("Unexpected error while fetching menu: {}", e.getMessage(), e);
+            logger.error("Unexpected error while fetching menu items: {}", e.getMessage(), e);
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -216,10 +262,6 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
     public ResponseEntity<Cart> updateCart(@RequestParam @Valid String userId, @RequestParam String menuItemId, @RequestParam int quantity) {
         logger.info("Received request to update cart for user ID: {} with menu item ID: {} and quantity: {}", userId, menuItemId, quantity);
-        if (quantity < 0) {
-            logger.warn("Invalid quantity provided: {}", quantity);
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        }
         try {
             Cart cart = cartService.updateCart(userId, menuItemId, quantity);
             logger.info("Cart updated successfully for user ID: {}", userId);
@@ -227,6 +269,9 @@ public class UserController {
         } catch (ResourceNotFoundException e) {
             logger.warn("Failed to update cart: {}", e.getMessage());
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Failed to update cart: {}", e.getMessage());
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
             logger.error("Unexpected error while updating cart: {}", e.getMessage(), e);
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -267,13 +312,16 @@ public class UserController {
         }
     }
 
-    // Order Endpoints
+    // Order Endpoints (Swiggy-like Flow)
     @PutMapping("/orders")
     @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
-    public ResponseEntity<Order> placeOrder(@RequestParam @Valid String userId, @RequestParam String restaurantId) {
+    public ResponseEntity<Order> placeOrder(
+            @RequestParam @Valid String userId,
+            @RequestParam String restaurantId,
+            @RequestParam String deliveryAddress) {
         logger.info("Received request to place order for user ID: {} from restaurant ID: {}", userId, restaurantId);
         try {
-            Order order = orderService.placeOrder(userId, restaurantId);
+            Order order = orderService.placeOrder(userId, restaurantId, deliveryAddress);
             logger.info("Order placed successfully with ID: {}", order.getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(order);
         } catch (ResourceNotFoundException e) {
@@ -292,7 +340,7 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN') or (hasRole('RESTAURANT') and @orderService.getOrderById(#orderId).restaurantId == authentication.principal.id)")
     public ResponseEntity<Order> updateOrderStatus(@PathVariable String orderId, @RequestParam String status) {
         logger.info("Received request to update status of order ID: {} to {}", orderId, status);
-        List<String> validStatuses = Arrays.asList("PLACED", "PREPARING", "DELIVERED", "CANCELLED");
+        List<String> validStatuses = Arrays.asList("PLACED", "PREPARING", "COOKING", "PACKED", "DISPATCHED", "DELIVERED", "CANCELLED");
         if (!validStatuses.contains(status)) {
             logger.warn("Invalid order status provided: {}", status);
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
@@ -364,6 +412,23 @@ public class UserController {
         }
     }
 
+    @GetMapping("/orders/{orderId}")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and @orderService.getOrderById(#orderId).userId == authentication.principal.id)")
+    public ResponseEntity<Order> getOrderById(@PathVariable String orderId) {
+        logger.info("Received request to fetch order with ID: {}", orderId);
+        try {
+            Order order = orderService.getOrderById(orderId);
+            logger.info("Order fetched successfully with ID: {}", orderId);
+            return ResponseEntity.ok(order);
+        } catch (ResourceNotFoundException e) {
+            logger.warn("Order not found with ID: {}", orderId);
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            logger.error("Unexpected error while fetching order: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     @GetMapping("/orders/{orderId}/status")
     @PreAuthorize("hasAnyRole('USER', 'RESTAURANT', 'ADMIN')")
     public ResponseEntity<String> getOrderStatus(@PathVariable String orderId) {
@@ -410,7 +475,7 @@ public class UserController {
         } catch (ResourceNotFoundException e) {
             logger.warn("Failed to apply coupon: {}", e.getMessage());
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             logger.warn("Failed to apply coupon: {}", e.getMessage());
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         } catch (Exception e) {
@@ -551,6 +616,41 @@ public class UserController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         } catch (Exception e) {
             logger.error("Unexpected error while fetching liked menu items: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    // Recommendation Endpoints
+    @GetMapping("/{userId}/recommendations")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
+    public ResponseEntity<List<MenuItem>> getRecommendations(@PathVariable String userId) {
+        logger.info("Received request to fetch recommendations for user ID: {}", userId);
+        try {
+            List<MenuItem> recommendations = recommendationService.getRecommendations(userId);
+            logger.info("Recommendations fetched successfully for user ID: {}", userId);
+            return ResponseEntity.ok(recommendations);
+        } catch (ResourceNotFoundException e) {
+            logger.warn("Failed to fetch recommendations: {}", e.getMessage());
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            logger.error("Unexpected error while fetching recommendations: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @PutMapping("/{userId}/preferences")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('USER') and #userId == authentication.principal.id)")
+    public ResponseEntity<Void> updatePreferences(@PathVariable String userId, @RequestBody List<String> favoriteCuisines) {
+        logger.info("Received request to update preferences for user ID: {}", userId);
+        try {
+            recommendationService.updatePreferences(userId, favoriteCuisines);
+            logger.info("Preferences updated successfully for user ID: {}", userId);
+            return ResponseEntity.ok().build();
+        } catch (ResourceNotFoundException e) {
+            logger.warn("Failed to update preferences: {}", e.getMessage());
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        } catch (Exception e) {
+            logger.error("Unexpected error while updating preferences: {}", e.getMessage(), e);
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
